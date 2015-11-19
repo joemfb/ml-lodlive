@@ -500,49 +500,45 @@ LodLiveRenderer.prototype.addBoxTitle = function(title, thisUri, destBox, contai
 };
 
 /**
- * iterates over predicates/object relationships, creating DOM nodes and calculating CSS positioning
+ * iterates over properties/object relationships, creating DOM nodes and calculating CSS positioning
+ *
+ * @param {Array<Object>} grouped - grouped properties and objects (`results.grouped` from sparqlClient)
+ * @param {Object} containerBox - `.lodlive-node` element
+ * @param {Array<Array<Number>>} chordsList - inner circle positions (for related nodes)
+ * @param {Array<Array<Number>>} chordsListGrouped - outer circle positions (for grouped related nodes)
  */
-LodLiveRenderer.prototype.createPropertyBoxes = function createPropertyBoxes(grouped, containerBox, chordsList, chordsListGrouped, isInverse) {
+LodLiveRenderer.prototype.createPropertyBoxes = function createPropertyBoxes(grouped, containerBox, chordsList, chordsListGrouped) {
   var renderer = this;
+  var containerId = containerBox.attr('id');
   var result = {
     objectList: [],
     innerObjectList: []
   };
 
+  function getData(object, group) {
+    return {
+      properties: group.property,
+      object: object,
+      inverse: group.inverse,
+      containerId: containerId
+    };
+  }
+
+  // group.property && group.object are always arrays
   grouped.forEach(function(group, i) {
     // related boxes are limited to 14 nodes per page, offset by 1 for prev-pagination link
     var counter = (i % 14) + 1;
 
     if (group.object.length > 1) {
-      var objBox = renderer.createPropertyGroup(
-        group.property.join(' | '),
-        group.object,
-        chordsList,
-        counter,
-        false //isInverse
-      );
+      var objBox = renderer.createPropertyGroup(group, chordsList, counter);
       result.objectList.push(objBox);
 
       group.object.slice(0, 24).forEach(function(object, i) {
-        var obj = renderer.createGroupedRelatedBox(
-          group.property.join(' | '),
-          object,
-          containerBox,
-          chordsListGrouped,
-          i,
-          false //isInverse
-        );
+        var obj = renderer.createGroupedRelatedBox( getData(object, group), chordsListGrouped, i );
         result.innerObjectList.push(obj);
       });
     } else {
-      var obj = renderer.createRelatedBox(
-        group.property.join(' | '),
-        group.object[0],
-        containerBox,
-        chordsList,
-        counter,
-        false //isInverse
-      );
+      var obj = renderer.createRelatedBox( getData(group.object[0], group), chordsList, counter );
       result.objectList.push(obj);
     }
   });
@@ -556,31 +552,41 @@ LodLiveRenderer.prototype.getRelationshipCSS = function(uri) {
 
 /**
  * create a node to represent a group of related properties (star-circle)
+ *
+ * @param {Object} grouped - represents a group of related nodes
+ * @prop {Array<String>} grouped.property - one-or-more related properties (predicates)
+ * @prop {Array<String>} grouped.object - one or more objects sharing a property group
+ * @param {Array<Array<Number>>} chordsList - inner circle positions (for related nodes)
+ * @param {Number} counter - index within circle
  */
-LodLiveRenderer.prototype.createPropertyGroup = function createPropertyGroup(predicates, groupValue, chordsList, counter, isInverse) {
+LodLiveRenderer.prototype.createPropertyGroup = function createPropertyGroup(group, chordsList, counter) {
   var renderer = this;
+  var propertyStr = group.property.join(' | ')
+
   var box = $('<div></div>')
   .addClass('groupedRelatedBox')
-  .attr('rel', renderer.hashFunc(predicates).toString())
-  .attr('data-property', predicates)
-  .attr('data-title', predicates + ' \n ' + (groupValue.length) + ' ' + utils.lang('connectedResources'))
-  .css(renderer.getRelationshipCSS(predicates))
+  .attr('rel', renderer.hashFunc(propertyStr).toString())
+  .attr('data-property', propertyStr)
+  .attr('data-title', propertyStr + ' \n ' + (group.object.length) + ' ' + utils.lang('connectedResources'))
+  // TODO: iterate properties
+  .css(renderer.getRelationshipCSS(propertyStr))
   .css({
     'top':  (chordsList[counter][1] - 8) + 'px',
     'left': (chordsList[counter][0] - 8) + 'px'
   });
 
-  if (isInverse) {
+  if (group.inverse) {
     box.addClass('inverse');
-    box.attr('rel', renderer.hashFunc(predicates).toString() + '-i');
+    box.attr('rel', renderer.hashFunc(propertyStr).toString() + '-i');
   }
 
-  if (groupValue[0].indexOf('~~') > -1) {
+  // TODO: handle bnodes
+  if (group.object[0].indexOf('~~') > -1) {
     box.addClass('isBnode');
   } else {
-    predicates.split(' ').forEach(function(predicate) {
-      if (renderer.arrows[predicate]) {
-        box.addClass(renderer.arrows[predicate]);
+    group.property.forEach(function(property) {
+      if (renderer.arrows[property]) {
+        box.addClass(renderer.arrows[property]);
       }
     });
   }
@@ -590,24 +596,32 @@ LodLiveRenderer.prototype.createPropertyGroup = function createPropertyGroup(pre
 
 /**
  * create a node to represent a property in a group of related properties
+ *
+ * @param {Object} data - represents a related node within a group
+ * @prop {Array<String>} data.properties - one-or-more related properties
+ * @prop {Array<String>} data.object - the related object
+ * @param {Array<Array<Number>>} chordsList - outer circle positions
+ * @param {Number} counter - index within circle
  */
-LodLiveRenderer.prototype.createGroupedRelatedBox = function createGroupedRelatedBox(predicates, object, containerBox, chordsListGrouped, innerCounter, isInverse) {
-  var box = this._createRelatedBox(predicates, object, containerBox, isInverse)
+LodLiveRenderer.prototype.createGroupedRelatedBox = function createGroupedRelatedBox(data, chordsList, counter) {
+  var propertyStr = data.properties.join(' | ');
+
+  var box = this._createRelatedBox(data)
   // this class is probably unnecessary now...
   .addClass('aGrouped')
-  .attr('data-circlePos', innerCounter)
+  .attr('data-circlePos', counter)
   .attr('data-circleParts', 36)
   .css({
     display: 'none',
     position: 'absolute',
-    top: (chordsListGrouped[innerCounter][1] - 8) + 'px',
-    left: (chordsListGrouped[innerCounter][0] - 8) + 'px'
+    top: (chordsList[counter][1] - 8) + 'px',
+    left: (chordsList[counter][0] - 8) + 'px'
   });
 
-  if (isInverse) {
-    box.addClass(this.hashFunc(predicates).toString() + '-i');
+  if (data.inverse) {
+    box.addClass(this.hashFunc(propertyStr).toString() + '-i');
   } else {
-    box.addClass(this.hashFunc(predicates).toString());
+    box.addClass(this.hashFunc(propertyStr).toString());
   }
 
   return box;
@@ -615,9 +629,15 @@ LodLiveRenderer.prototype.createGroupedRelatedBox = function createGroupedRelate
 
 /**
  * create a node to represent a related property
+ *
+ * @param {Object} data - represents a related node
+ * @prop {Array<String>} data.properties - one-or-more related properties
+ * @prop {Array<String>} data.object - the related object
+ * @param {Array<Array<Number>>} chordsList - inner circle positions (for related nodes)
+ * @param {Number} counter - index within circle
  */
-LodLiveRenderer.prototype.createRelatedBox = function createRelatedBox(predicates, object, containerBox, chordsList, counter, isInverse) {
-  return this._createRelatedBox(predicates, object, containerBox, isInverse)
+LodLiveRenderer.prototype.createRelatedBox = function createRelatedBox(data, chordsList, counter) {
+  return this._createRelatedBox(data)
   .attr('data-circlePos', counter)
   .attr('data-circleParts', 24)
   .css({
@@ -626,27 +646,39 @@ LodLiveRenderer.prototype.createRelatedBox = function createRelatedBox(predicate
   });
 };
 
-LodLiveRenderer.prototype._createRelatedBox = function _createRelatedBox(predicates, object, containerBox, isInverse) {
+/**
+ * creates a related node
+ * @private
+ *
+ * @param {Object} data - represents a related node
+ * @prop {Array<String>} data.properties - one-or-more related properties
+ * @prop {Array<String>} data.object - the related object
+ */
+LodLiveRenderer.prototype._createRelatedBox = function _createRelatedBox(data) {
   var renderer = this;
-  var box = $('<div></div>')
-  .addClass('relatedBox ' + renderer.hashFunc(object).toString())
-  .attr('rel', object)
-  .attr('relmd5', renderer.hashFunc(object).toString())
-  .attr('data-title', predicates + ' \n ' + object)
-  .attr('data-circleid', containerBox.attr('id'))
-  .attr('data-property', predicates)
-  .css(renderer.getRelationshipCSS(predicates));
+  var propertyStr = data.properties.join(' | ')
 
-  if (isInverse) {
+  var box = $('<div></div>')
+  .addClass('relatedBox ' + renderer.hashFunc(data.object).toString())
+  .attr('rel', data.object)
+  .attr('relmd5', renderer.hashFunc(data.object).toString())
+  .attr('data-title', propertyStr + ' \n ' + data.object)
+  .attr('data-circleid', data.containerId)
+  .attr('data-property', propertyStr)
+  // TODO: iterate properties
+  .css(renderer.getRelationshipCSS(propertyStr));
+
+  if (data.inverse) {
     box.addClass('inverse');
   }
 
-  if (object.indexOf('~~') > -1) {
+  // TODO: handle bnodes
+  if (data.object.indexOf('~~') > -1) {
     box.addClass('isBnode');
   } else {
-    predicates.split(' ').forEach(function(predicate) {
-      if (renderer.arrows[predicate]) {
-        box.addClass(renderer.arrows[predicate]);
+    data.properties.forEach(function(property) {
+      if (renderer.arrows[property]) {
+        box.addClass(renderer.arrows[property]);
       }
     });
   }

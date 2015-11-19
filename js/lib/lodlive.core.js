@@ -129,7 +129,7 @@
     // this.doStats = false
 
     // TODO: retrieve these from the profile
-    // this.doInverse = true;
+    this.doInverse = true;
     this.doAutoExpand = true;
     this.doAutoSameas = true;
 
@@ -475,7 +475,7 @@
   };
 
   // TODO: move to renderer
-  LodLive.prototype.renderOpenDoc = function(destBox, results, inverses) {
+  LodLive.prototype.renderOpenDoc = function(destBox, results) {
     var inst = this;
     var classMap = inst.classMap;
     var lodLiveProfile = inst.options;
@@ -577,20 +577,11 @@
     var chordsList = utils.circleChords(75, 24, destBox.position().left + 65, destBox.position().top + 65);
     var chordsListGrouped = utils.circleChords(95, 36, destBox.position().left + 65, destBox.position().top + 65);
 
-
     // iterate over grouped relations, creating DOM nodes and calculating CSS positioning
-    var connectedNodes = inst.renderer.createPropertyBoxes(results.grouped, containerBox, chordsList, chordsListGrouped, false);
-
-    // TODO: handle inverse
-    // var invertedNodes = createPropertyBoxes(invertedDocs, propertyGroupInverted, containerBox, chordsList, chordsListGrouped, true);
-
-    // var objectList = connectedNodes.objectList.concat(invertedNodes.objectList);
-    // var innerObjectList = connectedNodes.innerObjectList.concat(invertedNodes.innerObjectList);
-    var objectList = connectedNodes.objectList;
-    var innerObjectList = connectedNodes.innerObjectList;
+    var connectedNodes = inst.renderer.createPropertyBoxes(results.grouped, containerBox, chordsList, chordsListGrouped);
 
     // paginate and display the related boxes
-    inst.renderer.paginateRelatedBoxes(containerBox, objectList, innerObjectList, chordsList);
+    inst.renderer.paginateRelatedBoxes(containerBox, connectedNodes.objectList, connectedNodes.innerObjectList, chordsList);
 
     // append the tools
     inst.renderer.generateNodeIcons(anchorBox);
@@ -604,17 +595,10 @@
       $.error('LodLive: no uri for openDoc');
     }
 
-    // TODO: what is methods && what is doStats? neither exist ...
-    // if (inst.doStats) {
-    //   methods.doStats(anUri);
-    // }
-
     destBox.attr('data-endpoint', lodLiveProfile.connection['http:'].endpoint);
 
-    var inverses = [];
-
     function callback(results) {
-      inst.renderOpenDoc(destBox.children('.box'), results, inverses);
+      inst.renderOpenDoc(destBox.children('.box'), results);
 
       if (fromInverse && fromInverse.length) {
         $(fromInverse).click();
@@ -643,38 +627,33 @@
         }
 
         inst.sparqlClient.inverse(anUri, {
-          beforeSend : function() {
+          beforeSend: function() {
             // destBox.children('.box').html('<img id="1234" style=\"margin-top:' + (destBox.children('.box').height() / 2 - 5) + 'px\" src="img/ajax-loader.gif"/>');
             return inst.renderer.loading(destBox.children('.box'));
           },
-          success : function(inverseInfo) {
-            // TODO: skip values?
-            inverses = inverseInfo.uris.concat(inverseInfo.values);
+          success: function(inverseResults) {
+            // TODO: handle bnodes
 
-            // parse bnodes and add to URIs
-            // TODO: refactor `format()` and remove this
-            inverseInfo.bnodes.forEach(function(bnode) {
-              var keys = Object.keys(bnode);
-              var value = {};
-              keys.forEach(function(key) {
-                value[key] = anUri + '~~' + bnode[key];
-              });
-              inverses.push(value);
-            });
-
+            // this just seems to be a way to prioritize 'sameAs' predicates over other inverse relationships
             if (inst.doAutoSameas) {
-              inst.findInverseSameAs(anUri, inverses, function() {
-                callback(info);
+              inst.findInverseSameAs(anUri, function(inverseSameAsResults) {
+                // these used to be spliced into inverseResults at the second position
+                results.grouped = results.grouped
+                .concat(inverseSameAsResults.grouped)
+                .concat(inverseResults.grouped)
+
+                callback(results);
               });
             } else {
-              callback(info);
+              results.grouped = results.grouped.concat(inverseResults.grouped)
+              callback(results);
             }
           },
-          error : function(e, b, v) {
+          error: function() {
             // s/b unnecessary
             // destBox.children('.box').html('');
 
-            callback(info);
+            callback(results);
           }
         });
       },
@@ -684,7 +663,7 @@
     });
   };
 
-  LodLive.prototype.findInverseSameAs = function(anUri, inverse, callback) {
+  LodLive.prototype.findInverseSameAs = function(anUri, callback) {
     var inst = this;
 
     // TODO: why two options? (useForInverseSameAs and doAutoSameas)
@@ -692,33 +671,14 @@
       return setTimeout(function() { callback(); }, 0);
     }
 
-    var start;
-    if (inst.debugOn) {
-      start = new Date().getTime();
-    }
-
     inst.sparqlClient.inverseSameAs(anUri, {
-      success : function(json) {
-        json = json.results.bindings;
-
-        $.each(json, function(key, value) {
-          var newObj = {};
-          var key = value.property && value.property.value || 'http://www.w3.org/2002/07/owl#sameAs';
-          newObj[key] = value.object.value;
-          // TODO: why the 2nd array element?
-          inverse.splice(1, 0, newObj);
-        });
-
-        callback();
+      success: function(inverseResults) {
+        callback(inverseResults);
       },
-      error : function(e, b, v) {
+      error: function() {
         callback();
       }
     });
-
-    if (inst.debugOn) {
-      console.debug((new Date().getTime() - start) + '  findInverseSameAs');
-    }
   };
 
   //TODO: these line drawing methods don't care about the instance, they should live somewhere else

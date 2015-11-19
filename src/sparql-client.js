@@ -238,7 +238,15 @@ SparqlClient.prototype.inverse = function inverse(iri, callbacks) {
         return callbacks.error(new Error('malformed results'));
       }
 
-      callbacks.success( parseResults(json.results.bindings) );
+      var results = parseBindings(json.results.bindings);
+
+      results.grouped = mergeRelated(results.related);
+
+      results.grouped.forEach(function(grouped) {
+        grouped.inverse = true;
+      });
+
+      callbacks.success(results);
     }
   });
 };
@@ -247,7 +255,31 @@ SparqlClient.prototype.inverseSameAs = function inverseSameAs(iri, callbacks) {
   var axis = 'inverseSameAs';
   var query = this.getQuery(axis, iri);
 
-  return this.httpClient({ query: query }, callbacks);
+  return this.httpClient({ query: query }, {
+    beforeSend: callbacks.beforeSend,
+    error: callbacks.error,
+    success : function(json) {
+      if ( !(json && json.results && json.results.bindings) ) {
+        console.error(json);
+        return callbacks.error(new Error('malformed results'));
+      }
+
+      // ugh
+      json.results.bindings.forEach(function(binding) {
+        binding.property = binding.property || { value: 'http://www.w3.org/2002/07/owl#sameAs' };
+      });
+
+      var results = parseBindings(json.results.bindings);
+
+      results.grouped = mergeRelated(results.related);
+
+      results.grouped.forEach(function(grouped) {
+        grouped.inverse = true;
+      });
+
+      callbacks.success(results);
+    }
+  });
 };
 
 
