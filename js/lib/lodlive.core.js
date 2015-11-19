@@ -378,25 +378,22 @@
 
     // TODO: figure out how to fall back to URI
     inst.sparqlClient.bnode(val, {
-      beforeSend : function() {
+      beforeSend: function() {
         // destBox.find('span[class=bnode]').html('<img src="img/ajax-loader-black.gif"/>');
         return inst.renderer.loading(spanNode);
       },
-      success : function(info ) {
+      success: function(results) {
         // s/b unnecessary
         // destBox.find('span[class=bnode]').html('');
 
-        if (info.values.length) {
-          inst.renderer.docInfoBnodeValues(info.values, spanNode);
+        if (results.values.length) {
+          inst.renderer.docInfoBnodeValues(results.values, spanNode);
         }
 
-        info.bnodes.forEach(function(bnodeObj) {
-          var key = Object.keys(bnodeObj)[0]
-          var value = bnodeObj[value];
+        results.bnodes.forEach(function(bnode) {
+          var nestedBnodeNode = inst.renderer.docInfoNestedBnodes(bnode.property, spanNode);
 
-          var nestedBnodeNode = inst.renderer.docInfoNestedBnodes(key, spanNode);
-
-          inst.resolveBnodes(value, URI, nestedBnodeNode, destBox);
+          inst.resolveBnodes(bnode.bnode, URI, nestedBnodeNode, destBox);
         });
 
         // // TODO: slimScroll is no long included, and seems to be unnecessary

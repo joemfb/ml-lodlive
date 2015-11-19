@@ -366,23 +366,23 @@ LodLiveRenderer.prototype.docInfoLinks = function(links) {
  * @param {Array<String>} values
  * @returns {Object} a jQuery node
  */
-LodLiveRenderer.prototype.docInfoValues = function(literals) {
+LodLiveRenderer.prototype.docInfoValues = function(values) {
   var renderer = this;
 
-  if (!literals || !literals.length) return null;
+  if (!values || !values.length) return null;
 
   var wrapperNode = $('<div></div>');
 
-  literals.forEach(function(literal) {
+  values.forEach(function(valueObj) {
     // TODO: lookup replacements from properties mapper?
-    var shortKey = utils.shortenKey(literal.property);
+    var shortKey = utils.shortenKey(valueObj.property);
 
     var sectionNode = $('<div class="section"></div>');
     var labelNode = $('<label></label>')
-    .attr('data-title', literal.property)
+    .attr('data-title', valueObj.property)
     .text(shortKey);
 
-    var textNode = $('<div></div>').text(literal.value);
+    var textNode = $('<div></div>').text(valueObj.value);
 
     sectionNode.append(labelNode).append(textNode);
 
@@ -431,15 +431,13 @@ LodLiveRenderer.prototype.docInfoBnodeValues = function(values, spanNode) {
   spanNode.attr('class', '')
 
   values.forEach(function(valueObj) {
-    var key = Object.keys(valueObj)[0]
-    var value = valueObj[key];
-    var shortKey = utils.shortenKey(key);
+    var shortKey = utils.shortenKey(valueObj.property);
 
     var labelNode = $('<em></em>')
-    .attr('title', key)
+    .attr('title', valueObj.property)
     .text(shortKey);
 
-    var textNode = $('<span></span>').text(': ' + value);
+    var textNode = $('<span></span>').text(': ' + valueObj.value);
 
     var valueNode = $('<div></div>').append(labelNode).append(textNode);
 

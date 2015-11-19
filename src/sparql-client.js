@@ -130,24 +130,6 @@ function parseBindings(bindings) {
   return result;
 }
 
-function parseResults(bindings) {
-  var info = { uris: [], bnodes: [], values: [] };
-
-  $.each(bindings, function(key, value) {
-    var newVal = {};
-    newVal[value.property.value] = value.object.value;
-    if (value.object.type === 'uri') {
-      info.uris.push(newVal);
-    } else if (value.object.type === 'bnode') {
-      info.bnodes.push(newVal);
-    } else {
-      info.values.push(newVal);
-    }
-  });
-
-  return info;
-}
-
 function SparqlClient(httpClientFactory, options) {
   if (!(this instanceof SparqlClient)) {
     return new SparqlClient(httpClientFactory, options);
@@ -198,7 +180,7 @@ SparqlClient.prototype.bnode = function bnode(iri, callbacks) {
         return callbacks.error(new Error('malformed results'));
       }
 
-      callbacks.success( parseResults(json.results.bindings) );
+      callbacks.success( parseBindings(json.results.bindings) );
     }
   });
 };
