@@ -55,7 +55,7 @@ describe('lodlive', function () {
   it('should render sparql results', function () {
     var firstBox = this.sandbox.spy(LodLiveRenderer.prototype, 'firstBox');
     var openDoc = this.sandbox.spy(LodLive.prototype, 'openDoc');
-    var format = this.sandbox.spy(LodLive.prototype, 'format');
+    var renderOpenDoc = this.sandbox.spy(LodLive.prototype, 'renderOpenDoc');
     var addNewDoc = this.sandbox.spy(LodLive.prototype, 'addNewDoc');
     var renderDocInfo = this.sandbox.spy(LodLive.prototype, 'renderDocInfo');
 
@@ -78,7 +78,7 @@ describe('lodlive', function () {
       JSON.stringify(this.fixtures.willSmith)
     );
 
-    expect(format).to.have.been.calledOnce;
+    expect(renderOpenDoc).to.have.been.calledOnce;
 
     expect($('#graph .box').length).to.equal(1);
     expect($('#graph .lodlive-node .groupedRelatedBox').length).to.equal(6);
