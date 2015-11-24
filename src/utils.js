@@ -103,6 +103,49 @@ function invert(obj) {
   }, {});
 }
 
+/**
+ * Clones `obj`, converting all property values to arrays
+ *
+ * @param {Object} obj
+ * @return {Object} converted obj
+ */
+function propsAsArrays(obj) {
+  return Object.keys(obj).reduce(function(clone, key) {
+    clone[key] = asArray(obj[key]);
+    return clone;
+  }, {});
+}
+
+/**
+ * Merges the `merge` property of each object in `input`, by `selector`
+ *
+ * @param {Array<Object>} input
+ * @param {String} selector - the property of each `input` object to key off of
+ * @param {String} merge - the property of each object to merge
+ */
+function mergeBy(input, selector, merge) {
+  var cache = {};
+
+  return input.reduce(function(output, item) {
+    var clone = propsAsArrays(item);
+    var key = clone[selector].join(',');
+    var target = output[ cache[key] ];
+
+    if (target) {
+      clone[merge].forEach(function(value) {
+        if (target[merge].indexOf(value) === -1) {
+          target[merge].push(value);
+        }
+      });
+    } else {
+      cache[key] = output.length;
+      output.push(clone);
+    }
+
+    return output;
+  }, []);
+}
+
 var LodLiveUtils = {
   registerTranslation: registerTranslation,
   setDefaultTranslation: setDefaultTranslation,
@@ -113,7 +156,9 @@ var LodLiveUtils = {
   circleChords: circleChords,
   asArray: asArray,
   append: append,
-  invert: invert
+  invert: invert,
+  propsAsArrays: propsAsArrays,
+  mergeBy: mergeBy
 };
 
 module.exports = LodLiveUtils;

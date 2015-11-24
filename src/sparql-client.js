@@ -63,7 +63,31 @@ var extract = {
   ]
 };
 
+var excludedTypes = [
+  'images',
+  'longitudes',
+  'latitudes',
+  'points',
+  'weblinks'
+];
+
+var excludedPredicates = Array.prototype.concat.apply([],
+  excludedTypes.map(function(type) { return extract[type]; })
+);
+
 var lookup = utils.invert(extract);
+
+function mergeRelated(input) {
+  input = input.filter(function(uri) {
+    return excludedPredicates.indexOf(uri.predicate) === -1;
+  });
+
+  return utils.mergeBy(
+    utils.mergeBy(input, 'object', 'property'),
+    'property',
+    'object'
+  );
+}
 
 function parseBindings(bindings) {
   var result = {
@@ -192,7 +216,11 @@ SparqlClient.prototype.documentUri = function documentUri(iri, callbacks) {
         return callbacks.error(new Error('malformed results'));
       }
 
-      callbacks.success( parseResults(json.results.bindings) );
+      var results = parseBindings(json.results.bindings);
+
+      results.grouped = mergeRelated(results.related);
+
+      callbacks.success(results);
     }
   });
 };

@@ -129,7 +129,7 @@
     // this.doStats = false
 
     // TODO: retrieve these from the profile
-    this.doInverse = true;
+    // this.doInverse = true;
     this.doAutoExpand = true;
     this.doAutoSameas = true;
 
@@ -414,29 +414,6 @@
     });
   };
 
-  LodLive.prototype.getJsonValue = function(map, key, defaultValue) {
-    var inst = this;
-    var start;
-    if (inst.debugOn) {
-      start = new Date().getTime();
-    }
-    var returnVal = [];
-    $.each(map, function(skey, value) {
-      for (var akey in value) {
-        if (akey == key) {
-          returnVal.push(value[akey]);
-        }
-      }
-    });
-    if (returnVal == []) {
-      returnVal = [defaultValue];
-    }
-    if (inst.debugOn) {
-      console.debug((new Date().getTime() - start) + '  getJsonValue');
-    }
-    return returnVal;
-  };
-
   /**
     * Get a property within an area of a context
     *
@@ -497,28 +474,30 @@
     }
   };
 
+  // TODO: move to renderer
+  LodLive.prototype.renderOpenDoc = function(destBox, results, inverses) {
+    var inst = this;
+    var classMap = inst.classMap;
+    var lodLiveProfile = inst.options;
 
-  LodLive.prototype.format = function(destBox, values, uris, inverses) {
-    var inst = this, classMap = inst.classMap, lodLiveProfile = inst.options;
-
-    var start;
-    if (inst.debugOn) {
-      start = new Date().getTime();
-    }
     var containerBox = destBox.parent('div');
     var anchorBox = containerBox.find('.ll-node-anchor');
     var thisUri = containerBox.attr('rel') || '';
 
-    // recupero il doctype per caricare le configurazioni specifiche
-    var docType = inst.getJsonValue(uris, 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'default');
+    var docType = results.extracted.types;
+
+    // TODO: figure out how to replace this
     if (thisUri.indexOf('~~') != -1) {
       docType = 'bnode';
     }
-    // carico le configurazioni relative allo stile
+
+    // TODO: refactor
     var aClass = inst.getProperty('document', 'className', docType);
     if (docType == 'bnode') {
       aClass = 'bnode';
     }
+
+    // TODO: this makes no sense; docType is an array
 
     // destBox.addClass(aClass);
     if (aClass == null || aClass == 'standard' || aClass == '') {
@@ -538,67 +517,25 @@
       }
     }
     containerBox.addClass(aClass);
-    // ed ai path da mostrare nel titolo del box
-    var titles = inst.getProperty('document', 'titleProperties', docType);
-    // ed ai path degli oggetti di tipo immagine
-    var images = inst.getProperty('images', 'properties', docType);
-    // ed ai path dei link esterni
-    var weblinks = inst.getProperty('weblinks', 'properties', docType);
-    // e le latitudini
-    var lats = inst.getProperty('maps', 'lats', docType);
-    // e le longitudini
-    var longs = inst.getProperty('maps', 'longs', docType);
-    // e punti
-    var points = inst.getProperty('maps', 'points', docType);
 
-    // se la proprieta' e' stata scritta come stringa la trasformo in un
-    // array
-    if ( typeof titles === 'string') {
-      titles = [titles];
-    }
-    if ( typeof images === 'string') {
-      images = [images];
-    }
-    if ( typeof weblinks === 'string') {
-      weblinks = [weblinks];
-    }
-    if ( typeof lats === 'string') {
-      lats = [lats];
-    }
-    if ( typeof longs === 'string') {
-      longs = [longs];
-    }
-    if ( typeof points === 'string') {
-      points = [points];
+    var title;
+
+    if (results.extracted.titles) {
+      title = results.extracted.titles
+      .filter(function(title) {
+        // TODO: get lang from profile??
+        return title.value && (!title.lang || title.lang === 'en');
+      })
+      .map(function(title) { return title.value })
+      // deduplicate
+      .filter(function(value, index, self) {
+        return self.indexOf(value) === index;
+      })
+      .join('\n');
     }
 
-    // gestisco l'inserimento di messaggi di sistema come errori o altro
-    titles.push('http://system/msg');
-
-    var titlePieces = [];
-
-    titles.forEach(function(title) {
-      var titleValues;
-
-      if (title.indexOf('http') !== 0) {
-        titlePieces.push($.trim(title));
-      } else {
-        titleValues = inst.getJsonValue(values, title, title.indexOf('http') === 0 ? '' : title);
-        titleValues.forEach(function(titleValue) {
-          titlePieces.push(titleValue);
-        });
-      }
-    });
-
-    var title = titlePieces
-    // deduplicate
-    .filter(function(value, index, self) {
-      return self.indexOf(value) === index;
-    })
-    .join('\n');
-
-    // TODO: early return?
-    if (uris.length == 0 && values.length == 0) {
+    // TODO: simplify this (early return)?
+    if (!results || !(results.related.length || results.values.length)) {
       title = utils.lang('resourceMissing');
     } else if (!title && docType === 'bnode') {
       title = '[blank node]';
@@ -613,115 +550,10 @@
 
     inst.renderer.addBoxTitle(title, thisUri, destBox, containerBox);
 
-    // calcolo le uri e le url dei documenti correlati
-    var connectedDocs = [];
-    var invertedDocs = [];
-    var propertyGroup = {};
-    var propertyGroupInverted = {};
-
-    // Image rendering has been disabled; keeping for posterity ...
-    // var connectedImages = [];
-
-    // Map rendering has been disabled; keeping for posterity ...
-    // var connectedLongs = [];
-    // var connectedLats = [];
-
-    function groupByObject(inputArray, type) {
-      var tmpIRIs = {};
-      var outputArray = [];
-
-      inputArray.forEach(function(uriObj) {
-        // TODO: ensure only one key?
-        var property = Object.keys(uriObj)[0];
-        var object = uriObj[property];
-        var newObj = {};
-        var newKey, previousKey, previousIndex;
-
-        // Image rendering has been disabled; keeping for posterity ...
-        // if (type === 'uris' && images.indexOf(property) > -1) {
-        //   newObj[property] = escape(resourceTitle);
-        //   connectedImages.push(newObj);
-        //   return;
-        // }
-
-        // skip `weblinks` properties
-        if (type === 'uris' && weblinks.indexOf(property) > -1) return;
-
-        // TODO: checking for bnode of bnode?
-        if (type === 'inverses' && docType == 'bnode' && object.indexOf('~~') > -1) return;
-
-        // group by object
-        if (tmpIRIs.hasOwnProperty(object)) {
-          previousIndex = tmpIRIs[object];
-          previousKey = Object.keys(outputArray[ previousIndex ])[0]
-          newKey = previousKey + ' | ' + property;
-          newObj[ newKey ] = object;
-          outputArray[ previousIndex ] = newObj;
-        } else {
-          outputArray.push(uriObj);
-          tmpIRIs[object] = outputArray.length - 1;
-        }
-      });
-
-      return outputArray;
-    }
-
-    connectedDocs = groupByObject(uris, 'uris');
-    if (inverses) {
-      invertedDocs = groupByObject(inverses, 'inverses');
-    }
-
-    function groupByPropertyKey(inputArray) {
-      var group = {};
-
-      // group URIs by property key
-      inputArray.forEach(function(uriObj) {
-        // TODO: ensure only one key?
-        var property = Object.keys(uriObj)[0];
-        var object = uriObj[property];
-
-        if (group.hasOwnProperty(property)) {
-          group[property].push(object);
-        } else {
-          group[property] = [object];
-        }
-      });
-
-      return group;
-    }
-
-    // group URIs by property key
-    propertyGroup = groupByPropertyKey(connectedDocs);
-    // group inverse URIs by property key
-    propertyGroupInverted = groupByPropertyKey(invertedDocs);
-
     // Map rendering has been disabled; keeping for posterity ...
     // if (inst.doDrawMap) {
-    //   for (var a = 0; a < points.length; a++) {
-    //     var resultArray = inst.getJsonValue(values, points[a], points[a]);
-    //     for (var af = 0; af < resultArray.length; af++) {
-    //       if (resultArray[af].indexOf(' ') != -1) {
-    //         eval('connectedLongs.push(\'' + unescape(resultArray[af].split(' ')[1]) + '\')');
-    //         eval('connectedLats.push(\'' + unescape(resultArray[af].split(' ')[0]) + '\')');
-    //       } else if (resultArray[af].indexOf('-') != -1) {
-    //         eval('connectedLongs.push(\'' + unescape(resultArray[af].split('-')[1]) + '\')');
-    //         eval('connectedLats.push(\'' + unescape(resultArray[af].split('-')[0]) + '\')');
-    //       }
-    //     }
-    //   }
-    //   for (var a = 0; a < longs.length; a++) {
-    //     var resultArray = inst.getJsonValue(values, longs[a], longs[a]);
-    //     for (var af = 0; af < resultArray.length; af++) {
-    //       eval('connectedLongs.push(\'' + unescape(resultArray[af]) + '\')');
-    //     }
-    //   }
-    //   for (var a = 0; a < lats.length; a++) {
-    //     var resultArray = inst.getJsonValue(values, lats[a], lats[a]);
-    //     for (var af = 0; af < resultArray.length; af++) {
-    //       eval('connectedLats.push(\'' + unescape(resultArray[af]) + '\')');
-    //     }
-    //   }
-
+    //
+    //  // TODO: iterate results.extracted.points, pushing them onto lats/longs
     //   if (connectedLongs.length > 0 && connectedLats.length > 0) {
     //     var mapsMap = inst.mapsMap;
     //     mapsMap[containerBox.attr('id')] = {
@@ -742,27 +574,20 @@
     //   }
     // }
 
-    // No longer used; keeping for posterity ...
-    // totRelated = Object.keys(propertyGroup).length +
-    //              Object.keys(propertyGroupInverted).length;
-
-    // calcolo le parti in cui dividere il cerchio per posizionare i link
-    // var chordsList = this.lodlive('circleChords',
-    // destBox.width() / 2 + 12, ((totRelated > 1 ? totRelated - 1 :
-    // totRelated) * 2) + 4, destBox.position().left + destBox.width() /
-    // 2, destBox.position().top + destBox.height() / 2, totRelated +
-    // 4);
-
     var chordsList = utils.circleChords(75, 24, destBox.position().left + 65, destBox.position().top + 65);
     var chordsListGrouped = utils.circleChords(95, 36, destBox.position().left + 65, destBox.position().top + 65);
 
-    // iterate over connectedDocs and invertedDocs, creating DOM nodes and calculating CSS positioning
-    var connectedNodes = inst.renderer.createPropertyBoxes(connectedDocs, propertyGroup, containerBox, chordsList, chordsListGrouped, false);
-    var invertedNodes = inst.renderer.createPropertyBoxes(invertedDocs, propertyGroupInverted, containerBox, chordsList, chordsListGrouped, true);
 
-    // aggiungo al box i link ai documenti correlati
-    var objectList = connectedNodes.objectList.concat(invertedNodes.objectList);
-    var innerObjectList = connectedNodes.innerObjectList.concat(invertedNodes.innerObjectList);
+    // iterate over grouped relations, creating DOM nodes and calculating CSS positioning
+    var connectedNodes = inst.renderer.createPropertyBoxes(results.grouped, containerBox, chordsList, chordsListGrouped, false);
+
+    // TODO: handle inverse
+    // var invertedNodes = createPropertyBoxes(invertedDocs, propertyGroupInverted, containerBox, chordsList, chordsListGrouped, true);
+
+    // var objectList = connectedNodes.objectList.concat(invertedNodes.objectList);
+    // var innerObjectList = connectedNodes.innerObjectList.concat(invertedNodes.innerObjectList);
+    var objectList = connectedNodes.objectList;
+    var innerObjectList = connectedNodes.innerObjectList;
 
     // paginate and display the related boxes
     inst.renderer.paginateRelatedBoxes(containerBox, objectList, innerObjectList, chordsList);
@@ -788,8 +613,8 @@
 
     var inverses = [];
 
-    function callback(info) {
-      inst.format(destBox.children('.box'), info.values, info.uris, inverses);
+    function callback(results) {
+      inst.renderOpenDoc(destBox.children('.box'), results, inverses);
 
       if (fromInverse && fromInverse.length) {
         $(fromInverse).click();
@@ -801,32 +626,20 @@
     };
 
     inst.sparqlClient.documentUri(anUri, {
-      beforeSend : function() {
+      beforeSend: function() {
         // destBox.children('.box').html('<img style=\"margin-top:' + (destBox.children('.box').height() / 2 - 8) + 'px\" src="img/ajax-loader.gif"/>');
         return inst.renderer.loading(destBox.children('.box'))
       },
-      success : function(info) {
-        // reformat values for compatility
+      success: function(results) {
+        // TODO: filter results.related where object value === anURI (??)
 
-        // TODO: refactor `format()` and remove this
-        info.bnodes.forEach(function(bnode) {
-          var keys = Object.keys(bnode)
-          var value = {};
-          keys.forEach(function(key) {
-            value[key] = anUri + '~~' + bnode[key];
-          })
-          info.uris.push(value);
-        })
-
-        delete info.bnodes;
-
-        // TODO: filter info.uris where object value === anURI (??)
+        // TODO: handle bnodes
 
         // s/b unnecessary
         // destBox.children('.box').html('');
 
         if (!inst.doInverse) {
-          return callback(info);
+          return callback(results);
         }
 
         inst.sparqlClient.inverse(anUri, {
@@ -865,7 +678,7 @@
           }
         });
       },
-      error : function(e, b, v) {
+      error: function() {
         inst.renderer.errorBox(destBox);
       }
     });

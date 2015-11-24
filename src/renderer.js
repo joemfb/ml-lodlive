@@ -502,53 +502,52 @@ LodLiveRenderer.prototype.addBoxTitle = function(title, thisUri, destBox, contai
 /**
  * iterates over predicates/object relationships, creating DOM nodes and calculating CSS positioning
  */
-LodLiveRenderer.prototype.createPropertyBoxes = function createPropertyBoxes(inputArray, inputGroup, containerBox, chordsList, chordsListGrouped, isInverse) {
+LodLiveRenderer.prototype.createPropertyBoxes = function createPropertyBoxes(grouped, containerBox, chordsList, chordsListGrouped, isInverse) {
   var renderer = this;
-  var counter = 1;
-  var inserted = {};
-  var innerCounter = 1;
-  var objectList = [];
-  var innerObjectList = [];
+  var result = {
+    objectList: [],
+    innerObjectList: []
+  };
 
-  inputArray.forEach(function(value, i) {
-    // TODO: refactor; modular arithmetic for CSS positioning
-    // counter appears to equal the count of groupedProperties mod 14 plus 1 or 2
-    if (counter === 15) {
-      counter = 1;
-    }
+  grouped.forEach(function(group, i) {
+    // related boxes are limited to 14 nodes per page, offset by 1 for prev-pagination link
+    var counter = (i % 14) + 1;
 
-    // TODO: ensure only one key?
-    var key = Object.keys(value)[0];
-    var obj = null;
+    if (group.object.length > 1) {
+      var objBox = renderer.createPropertyGroup(
+        group.property.join(' | '),
+        group.object,
+        chordsList,
+        counter,
+        false //isInverse
+      );
+      result.objectList.push(objBox);
 
-    if (inputGroup[key] && inputGroup[key].length > 1) {
-      if (!inserted[key]) {
-        innerCounter = 1;
-        inserted[key] = true;
-
-        var objBox = renderer.createPropertyGroup(key, inputGroup[key], chordsList, counter, isInverse);
-        objectList.push(objBox);
-        counter++;
-      }
-
-      // TODO: magic number; why 25?
-      if (innerCounter < 25) {
-        obj = renderer.createGroupedRelatedBox(key, value[key], containerBox, chordsListGrouped, innerCounter, isInverse);
-        innerObjectList.push(obj);
-      }
-
-      innerCounter++;
+      group.object.slice(0, 24).forEach(function(object, i) {
+        var obj = renderer.createGroupedRelatedBox(
+          group.property.join(' | '),
+          object,
+          containerBox,
+          chordsListGrouped,
+          i,
+          false //isInverse
+        );
+        result.innerObjectList.push(obj);
+      });
     } else {
-      obj = renderer.createRelatedBox(key, value[key], containerBox, chordsList, counter, isInverse);
-      objectList.push(obj);
-      counter++;
+      var obj = renderer.createRelatedBox(
+        group.property.join(' | '),
+        group.object[0],
+        containerBox,
+        chordsList,
+        counter,
+        false //isInverse
+      );
+      result.objectList.push(obj);
     }
   });
 
-  return {
-    objectList: objectList,
-    innerObjectList: innerObjectList
-  }
+  return result;
 };
 
 LodLiveRenderer.prototype.getRelationshipCSS = function(uri) {
