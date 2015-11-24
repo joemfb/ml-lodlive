@@ -1,5 +1,7 @@
 'use strict'
 
+var utils = require('./utils.js');
+
 var defaultQueries = {
   documentUri: 'SELECT DISTINCT * WHERE {<{URI}> ?property ?object} ORDER BY ?property',
   document: 'SELECT DISTINCT * WHERE {<{URI}> ?property ?object}',
@@ -7,6 +9,102 @@ var defaultQueries = {
   inverse: 'SELECT DISTINCT * WHERE {?object ?property <{URI}>.} LIMIT 100',
   inverseSameAs: 'SELECT DISTINCT * WHERE {{?object <http://www.w3.org/2002/07/owl#sameAs> <{URI}> } UNION { ?object <http://www.w3.org/2004/02/skos/core#exactMatch> <{URI}>}}'
 };
+
+// TODO: get from SparqlClient options
+var extract = {
+  types: [ 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' ],
+  titles: [
+    'http://purl.org/linked-data/api/vocab#label',
+    'http://schema.org/name',
+    'http://www.w3.org/2004/02/skos/core#notation',
+    'http://www.w3.org/1999/02/22-rdf-syntax-ns#value',
+    'http://www.geonames.org/ontology#name',
+    'http://purl.org/dc/elements/1.1/title',
+    'http://purl.org/dc/terms/title',
+    'http://www.w3.org/2000/01/rdf-schema#label',
+    'http://www.w3.org/2004/02/skos/core#prefLabel',
+    'http://rdf.freebase.com/ns/type.object.name',
+    'http://xmlns.com/foaf/0.1/firstName',
+    'http://xmlns.com/foaf/0.1/lastName',
+    'http://xmlns.com/foaf/0.1/surname',
+    // 'http://xmlns.com/foaf/0.1/name',
+    'http://purl.org/dc/terms/description',
+    'http://www.geonames.org/ontology/officialName'
+  ],
+  images: [
+    'http://www.w3.org/2006/vcard/ns#photo',
+    'http://xmlns.com/foaf/0.1/depiction',
+    'http://dbpedia.org/ontology/thumbnail',
+    'http://dbpedia.org/property/logo',
+    'http://linkedgeodata.org/ontology/schemaIcon'
+  ],
+  longitudes: [
+    'http://www.w3.org/2003/01/geo/wgs84_pos#long'
+  ],
+  latitudes: [
+    'http://www.w3.org/2003/01/geo/wgs84_pos#lat'
+  ],
+  points: [
+    'http://www.georss.org/georss/point'
+  ],
+  weblinks: [
+    'http://www.w3.org/ns/dcat#accessURL',
+    'http://xmlns.com/foaf/0.1/mbox',
+    'http://rdfs.org/sioc/ns#links_to',
+    'http://it.dbpedia.org/property/url',
+    'http://data.nytimes.com/elements/search_api_query',
+    'http://www.w3.org/2000/01/rdf-schema#isDefinedBy',
+    'http://xmlns.com/foaf/0.1/page',
+    'http://xmlns.com/foaf/0.1/homepage',
+    'http://purl.org/dc/terms/isReferencedBy',
+    'http://purl.org/dc/elements/1.1/relation',
+    'http://dbpedia.org/ontology/wikiPageExternalLink',
+    'http://data.nytimes.com/elements/topicPage'
+  ]
+};
+
+var lookup = utils.invert(extract);
+
+function parseBindings(bindings) {
+  var result = {
+    extracted: {},
+    grouped: [],
+    values: [],
+    related: [],
+    bnodes: []
+  };
+
+  bindings.forEach(function(binding) {
+    var property = binding.property.value;
+    var object = binding.object.value;
+    var type = binding.object.type;
+    var extractType = lookup[property];
+    var obj;
+
+    if (type === 'bnode') {
+      obj = { property: property, bnode: object };
+      result.bnodes.push(obj);
+    } else if (type === 'uri') {
+      obj = { property: property, object: object };
+      result.related.push(obj);
+    } else {
+      obj = { property: property, value: object };
+      if (type === 'typed-literal') {
+        obj.type = binding.object.datatype;
+      }
+      if (binding.object['xml:lang']) {
+        obj.lang = binding.object['xml:lang'];
+      }
+      result.values.push(obj);
+    }
+
+    if (extractType) {
+      utils.append(result.extracted, extractType, obj);
+    }
+  });
+
+  return result;
+}
 
 function parseResults(bindings) {
   var info = { uris: [], bnodes: [], values: [] };
@@ -58,7 +156,7 @@ SparqlClient.prototype.document = function document(iri, callbacks) {
         return callbacks.error(new Error('malformed results'));
       }
 
-      callbacks.success( parseResults(json.results.bindings) );
+      callbacks.success( parseBindings(json.results.bindings) );
     }
   });
 };

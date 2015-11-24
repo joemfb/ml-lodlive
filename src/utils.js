@@ -62,6 +62,47 @@ function circleChords(radius, steps, centerX, centerY, breakAt, onlyElement) {
   return values;
 }
 
+/**
+ * Convert arguments to an array. Returns an array if passed one
+ */
+function asArray() {
+  if ( arguments.length === 1 && Array.isArray(arguments[0]) ) {
+    return arguments[0];
+  } else {
+    return [].slice.call(arguments);
+  }
+}
+
+/**
+ * Append value to `obj[key]`, creating an array if it doesn't exist
+ *
+ * @param {Object} obj
+ * @param {String} key
+ * @param value
+ */
+function append(obj, key, value) {
+  if (obj[key]) {
+    obj[key].push(value);
+  } else {
+    obj[key] = [value];
+  }
+}
+
+/**
+ * Inverts `obj`, creating separate properties for each value in any child arrays
+ *
+ * @param {Object} obj
+ * @return {Object} inverted obj
+ */
+function invert(obj) {
+  return Object.keys(obj).reduce(function(inverted, key) {
+    asArray(obj[key]).forEach(function(val) {
+      append(inverted, val, key);
+    });
+    return inverted;
+  }, {});
+}
+
 var LodLiveUtils = {
   registerTranslation: registerTranslation,
   setDefaultTranslation: setDefaultTranslation,
@@ -69,7 +110,10 @@ var LodLiveUtils = {
   breakLines: breakLines,
   hashFunc: hashFunc,
   shortenKey: shortenKey,
-  circleChords: circleChords
+  circleChords: circleChords,
+  asArray: asArray,
+  append: append,
+  invert: invert
 };
 
 module.exports = LodLiveUtils;

@@ -252,7 +252,7 @@ LodLiveRenderer.prototype.docInfoMissing = function() {
 LodLiveRenderer.prototype.docInfoTypes = function(types) {
   var renderer = this;
 
-  if (!types.length) return null;
+  if (!types || !types.length) return null;
 
   // TODO: get types from profile
   var labelNode = $('<label data-title="http://www.w3.org/1999/02/22-rdf-syntax-ns#type">type</label>');
@@ -261,10 +261,10 @@ LodLiveRenderer.prototype.docInfoTypes = function(types) {
 
   types.forEach(function(type) {
     var typeNode = $('<span></span>')
-    .attr('title', type)
+    .attr('title', type.object)
     // space required to allow wrapping
     // TODO: create an <ul/> ?
-    .text(utils.shortenKey(type) + ' ');
+    .text(utils.shortenKey(type.object) + ' ');
 
     wrapperNode.append(typeNode);
   });
@@ -283,16 +283,13 @@ LodLiveRenderer.prototype.docInfoTypes = function(types) {
  * @returns {Object} a jQuery node
  */
 LodLiveRenderer.prototype.docInfoImages = function(images) {
-  if (!images.length) return null;
+  if (!images || !images.length) return null;
 
   var sectionNode = $('<div class="section" style="height:80px"></div>');
 
-  images.forEach(function(imgObj) {
-    var key = Object.keys(imgObj)[0];
-    var value = imgObj[key];
-
-    var linkNode = $('<a></a>').attr('href', value);
-    var imgNode = $('<img/>').attr('src', value);
+  images.forEach(function(img) {
+    var linkNode = $('<a></a>').attr('href', img.object);
+    var imgNode = $('<img/>').attr('src', img.object);
 
     linkNode.append(imgNode);
     sectionNode.append(linkNode);
@@ -341,21 +338,18 @@ LodLiveRenderer.prototype.docInfoImages = function(images) {
 LodLiveRenderer.prototype.docInfoLinks = function(links) {
   var renderer = this;
 
-  if (!links.length) return null;
+  if (!links || !links.length) return null;
 
   var sectionNode = $('<div class="section"></div>');
   // TODO: move styles to external sheet
   var wrapperNode = $('<ul style="padding:0;margin:0;display:block;overflow:hidden;tex-overflow:ellipses"></ul>');
 
-  links.forEach(function(linkObj) {
-    var key = Object.keys(linkObj)[0];
-    var value = linkObj[key];
-
+  links.forEach(function(link) {
     var listItemNode = $('<li></li>');
     var linkNode = $('<a class="relatedLink" target="_blank"></a>')
-    .attr('data-title', key + ' \n ' + value)
-    .attr('href', value)
-    .text(value);
+    .attr('data-title', link.property + ' \n ' + link.object)
+    .attr('href', link.object)
+    .text(link.object);
 
     listItemNode.append(linkNode);
     wrapperNode.append(listItemNode);
@@ -372,26 +366,23 @@ LodLiveRenderer.prototype.docInfoLinks = function(links) {
  * @param {Array<String>} values
  * @returns {Object} a jQuery node
  */
-LodLiveRenderer.prototype.docInfoValues = function(values) {
+LodLiveRenderer.prototype.docInfoValues = function(literals) {
   var renderer = this;
 
-  if (!values.length) return null;
+  if (!literals || !literals.length) return null;
 
   var wrapperNode = $('<div></div>');
 
-  values.forEach(function(valueObj) {
-    var key = Object.keys(valueObj)[0];
-    var value = valueObj[key];
-
+  literals.forEach(function(literal) {
     // TODO: lookup replacements from properties mapper?
-    var shortKey = utils.shortenKey(key);
+    var shortKey = utils.shortenKey(literal.property);
 
     var sectionNode = $('<div class="section"></div>');
     var labelNode = $('<label></label>')
-    .attr('data-title', key)
+    .attr('data-title', literal.property)
     .text(shortKey);
 
-    var textNode = $('<div></div>').text(value);
+    var textNode = $('<div></div>').text(literal.value);
 
     sectionNode.append(labelNode).append(textNode);
 
@@ -410,14 +401,11 @@ LodLiveRenderer.prototype.docInfoValues = function(values) {
 LodLiveRenderer.prototype.docInfoBnodes = function(bnodes) {
   var renderer = this;
 
-  return bnodes.map(function(bnodeObj) {
-    var key = Object.keys(bnodeObj)[0];
-    var value = bnodeObj[key];
-    var shortKey = utils.shortenKey(key);
-
+  return bnodes.map(function(bnode) {
+    var shortKey = utils.shortenKey(bnode.property);
     var bnodeNode = $('<div class="section"></div>');
     var labelNode = $('<label></label>')
-    .attr('data-title', key)
+    .attr('data-title', bnode.property)
     .text(shortKey);
 
     var spanNode = $('<span class="bnode"></span>')
@@ -425,7 +413,7 @@ LodLiveRenderer.prototype.docInfoBnodes = function(bnodes) {
     bnodeNode.append(labelNode).append(spanNode);
 
     return {
-      value: value,
+      value: bnode.bnode,
       spanNode: spanNode,
       bnodeNode: bnodeNode
     };

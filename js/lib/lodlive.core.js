@@ -337,84 +337,35 @@
     docInfo.attr('rel', URI);
 
     inst.sparqlClient.document(URI, {
-      success : function(info) {
+      success: function(results) {
         docInfo.empty().fadeIn();
-        inst.formatDoc(docInfo, info.values, info.uris, info.bnodes, URI);
+        inst.renderDocInfo(docInfo, results, URI);
       },
-      error : function(e, b, v) {
-        var values = [{
-          'http://system/msg' : 'Could not find document: ' + URI
-        }];
-        inst.formatDoc(docInfo, values, [], [], URI);
+      error: function() {
+        inst.renderDocInfo(docInfo, null, URI);
       }
     });
   };
 
-  LodLive.prototype.formatDoc = function(destBox, values, uris, bnodes, URI) {
+  // TODO: move to renderer
+  LodLive.prototype.renderDocInfo = function(destBox, results, URI) {
     var inst = this;
 
-    //TODO:  Some of these seem like they should be Utils functions instead of on the instance, not sure yet
-    // recupero il doctype per caricare le configurazioni specifiche
-    var docType = inst.getJsonValue(uris, 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'default');
-    // carico le configurazioni relative allo stile
-    destBox.addClass(inst.getProperty('document', 'className', docType));
-
-    if (!values.length && !bnodes.length) {
+    if (!results || !(results.values.length || results.bnodes.length)) {
       return destBox.append(inst.renderer.docInfoMissing());
     }
 
-    // ed ai path degli oggetti di tipo immagine
-    var images = inst.getProperty('images', 'properties', docType);
-    // ed ai path dei link esterni
-    var weblinks = inst.getProperty('weblinks', 'properties', docType);
-    // ed eventuali configurazioni delle proprietÃ  da mostrare
-    // TODO: fare in modo che sia sempre possibile mettere il dominio come fallback
-    var propertiesMapper = inst.getProperty('document', 'propertiesMapper', URI.replace(/(http:\/\/[^\/]+\/).+/, '$1'));
+    // TODO: refactor
+    destBox.addClass(inst.getProperty('document', 'className', results.extracted.types));
 
-    // se la proprieta' e' stata scritta come stringa la trasformo in un
-    // array
-    if (!Array.isArray(images)) {
-      images = [images];
-    }
-    if (!Array.isArray(weblinks)) {
-      weblinks = [weblinks];
-    }
-
-    var connectedImages = [];
-    var connectedWeblinks = [];
-
-    // TODO: get type IRIs from profile
-    var types = [];
-
-    uris.forEach(function(uriObj) {
-      // TODO: confirm one key?
-      var key = Object.keys(uriObj)[0];
-      var value = uriObj[key];
-      var newVal = {};
-
-      // TODO: iterate type IRIs
-      if (key !== 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type') {
-        newVal[key] = value;
-        if (images.indexOf(key) > -1) {
-          connectedImages.push(newVal);
-        } else if (weblinks.indexOf(key) > -1) {
-          connectedWeblinks.push(newVal);
-        }
-      } else {
-        types.push(value);
-      }
-    });
-
+    destBox.append(inst.renderer.docInfoTypes(results.extracted.types));
+    destBox.append(inst.renderer.docInfoImages(results.extracted.images));
+    destBox.append(inst.renderer.docInfoLinks(results.extracted.weblinks));
 
     // TODO: iterate values, looking up replacements in profile property mapper?
+    destBox.append(inst.renderer.docInfoValues(results.values));
 
-    destBox.append(inst.renderer.docInfoTypes(types));
-    destBox.append(inst.renderer.docInfoImages(connectedImages));
-    destBox.append(inst.renderer.docInfoLinks(connectedWeblinks));
-    destBox.append(inst.renderer.docInfoValues(values));
-
-
-    var renderedBnodes = inst.renderer.docInfoBnodes(bnodes);
+    var renderedBnodes = inst.renderer.docInfoBnodes(results.bnodes);
 
     renderedBnodes.forEach(function(obj) {
       destBox.append(obj.bnodeNode);
