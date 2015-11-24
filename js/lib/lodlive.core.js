@@ -67,7 +67,9 @@
 
     this.sparqlClient = sparqlClientFactory.create(httpClientFactory, {
       connection: connection,
-      queries: profile.queries || profile.connection['http:'].sparql
+      queries: profile.queries || profile.connection['http:'].sparql,
+      doInverse: profile.doInverse,
+      doInverseSameAs: profile.doInverseSameAs
     });
 
     // TODO: pass factory as constructor parameter
@@ -128,10 +130,8 @@
     // TODO: this method is missing; implement it, or remove flag
     // this.doStats = false
 
-    // TODO: retrieve these from the profile
-    this.doInverse = true;
+    // TODO: retrieve from the profile
     this.doAutoExpand = true;
-    this.doAutoSameas = true;
 
     // explicitly disabled, for now
     this.doCollectImages = false;
@@ -586,25 +586,13 @@
 
   LodLive.prototype.openDoc = function(anUri, destBox, fromInverse) {
     var inst = this;
-    var lodLiveProfile = inst.options;
 
     if (!anUri) {
-      $.error('LodLive: no uri for openDoc');
+      throw new Error('LodLive: no uri for openDoc');
     }
 
-    destBox.attr('data-endpoint', lodLiveProfile.connection['http:'].endpoint);
-
-    function callback(results) {
-      inst.renderOpenDoc(destBox.children('.box'), results);
-
-      if (fromInverse && fromInverse.length) {
-        $(fromInverse).click();
-      }
-
-      if (inst.doAutoExpand) {
-        inst.autoExpand(destBox);
-      }
-    };
+    // TODO: how to handle new profile structure?
+    destBox.attr('data-endpoint', inst.options.connection['http:'].endpoint);
 
     inst.sparqlClient.documentUri(anUri, {
       beforeSend: function() {
@@ -613,73 +601,27 @@
       },
       success: function(results) {
         // TODO: filter results.related where object value === anURI (??)
-
         // TODO: handle bnodes
 
         // s/b unnecessary
         // destBox.children('.box').html('');
 
-        if (!inst.doInverse) {
-          return callback(results);
+        inst.renderOpenDoc(destBox.children('.box'), results);
+        inst.addClick(destBox);
+
+        if (fromInverse && fromInverse.length) {
+          $(fromInverse).click();
         }
 
-        inst.sparqlClient.inverse(anUri, {
-          beforeSend: function() {
-            // destBox.children('.box').html('<img id="1234" style=\"margin-top:' + (destBox.children('.box').height() / 2 - 5) + 'px\" src="img/ajax-loader.gif"/>');
-            return inst.renderer.loading(destBox.children('.box'));
-          },
-          success: function(inverseResults) {
-            // TODO: handle bnodes
-
-            // this just seems to be a way to prioritize 'sameAs' predicates over other inverse relationships
-            if (inst.doAutoSameas) {
-              inst.findInverseSameAs(anUri, function(inverseSameAsResults) {
-                // these used to be spliced into inverseResults at the second position
-                results.grouped = results.grouped
-                .concat(inverseSameAsResults.grouped)
-                .concat(inverseResults.grouped)
-
-                callback(results);
-              });
-            } else {
-              results.grouped = results.grouped.concat(inverseResults.grouped)
-              callback(results);
-            }
-          },
-          error: function() {
-            // s/b unnecessary
-            // destBox.children('.box').html('');
-
-            callback(results);
-          }
-        });
+        if (inst.doAutoExpand) {
+          inst.autoExpand(destBox);
+        }
       },
       error: function() {
         inst.renderer.errorBox(destBox);
       }
     });
   };
-
-  LodLive.prototype.findInverseSameAs = function(anUri, callback) {
-    var inst = this;
-
-    // TODO: why two options? (useForInverseSameAs and doAutoSameas)
-    if (!inst.options.connection['http:'].useForInverseSameAs) {
-      return setTimeout(function() { callback(); }, 0);
-    }
-
-    inst.sparqlClient.inverseSameAs(anUri, {
-      success: function(inverseResults) {
-        callback(inverseResults);
-      },
-      error: function() {
-        callback();
-      }
-    });
-  };
-
-  //TODO: these line drawing methods don't care about the instance, they should live somewhere else
-
 
   // expose our Constructor if not already present
   if (!window.LodLive) {

@@ -63,9 +63,9 @@ describe('lodlive', function () {
 
     // disable jsonp to force XHR
     ExampleProfile.endpoints.jsonp = false;
+    ExampleProfile.doInverse = false;
     // ExampleProfile.debugOn = true;
     jQuery('#graph').lodlive({ profile: ExampleProfile, firstUri: firstUri });
-    jQuery('#graph').data('lodlive-instance').doInverse = false;
 
     expect(firstBox).to.have.been.calledOnce;
     expect(openDoc).to.have.been.calledOnce;

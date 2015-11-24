@@ -136,6 +136,8 @@ function SparqlClient(httpClientFactory, options) {
   }
 
   this.httpClient = httpClientFactory.create(options.connection);
+  this.doInverse = options.doInverse;
+  this.doInverseSameAs = options.doInverseSameAs;
 
   this.getQueryTemplate = function(axis) {
     return options.queries && options.queries[axis] ?
@@ -186,6 +188,7 @@ SparqlClient.prototype.bnode = function bnode(iri, callbacks) {
 };
 
 SparqlClient.prototype.documentUri = function documentUri(iri, callbacks) {
+  var self = this;
   var axis = 'documentUri';
   var query = this.getQuery(axis, iri);
 
@@ -202,7 +205,38 @@ SparqlClient.prototype.documentUri = function documentUri(iri, callbacks) {
 
       results.grouped = mergeRelated(results.related);
 
-      callbacks.success(results);
+      if (!self.doInverse) {
+        return callbacks.success(results);
+      }
+
+      function inverseSuccess(related) {
+        var inverseGrouped = mergeRelated(related);
+        inverseGrouped.forEach(function(grouped) {
+          grouped.inverse = true;
+        });
+        results.grouped = results.grouped.concat(inverseGrouped);
+        callbacks.success(results);
+      }
+
+      function inverseError() {
+        callbacks.success(results);
+      }
+
+      self.inverse(iri, {
+        error: inverseError,
+        success: function(inverseResults) {
+          if (!self.doInverseSameAs) {
+            return inverseSuccess(inverseResults.related);
+          }
+
+          self.inverseSameAs(iri, {
+            error: inverseError,
+            success: function(sameAsResults) {
+              inverseSuccess( sameAsResults.related.concat(inverseResults.related) );
+            }
+          });
+        }
+      });
     }
   });
 };
@@ -222,17 +256,12 @@ SparqlClient.prototype.inverse = function inverse(iri, callbacks) {
 
       var results = parseBindings(json.results.bindings);
 
-      results.grouped = mergeRelated(results.related);
-
-      results.grouped.forEach(function(grouped) {
-        grouped.inverse = true;
-      });
-
       callbacks.success(results);
     }
   });
 };
 
+// Note: this used to be gated by `connection.useForInverseSameAs`
 SparqlClient.prototype.inverseSameAs = function inverseSameAs(iri, callbacks) {
   var axis = 'inverseSameAs';
   var query = this.getQuery(axis, iri);
@@ -251,15 +280,7 @@ SparqlClient.prototype.inverseSameAs = function inverseSameAs(iri, callbacks) {
         binding.property = binding.property || { value: 'http://www.w3.org/2002/07/owl#sameAs' };
       });
 
-      var results = parseBindings(json.results.bindings);
-
-      results.grouped = mergeRelated(results.related);
-
-      results.grouped.forEach(function(grouped) {
-        grouped.inverse = true;
-      });
-
-      callbacks.success(results);
+      callbacks.success(parseBindings(json.results.bindings));
     }
   });
 };
