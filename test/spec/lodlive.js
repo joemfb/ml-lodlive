@@ -57,7 +57,7 @@ describe('lodlive', function () {
     var openDoc = this.sandbox.spy(LodLive.prototype, 'openDoc');
     var format = this.sandbox.spy(LodLive.prototype, 'format');
     var addNewDoc = this.sandbox.spy(LodLive.prototype, 'addNewDoc');
-    var formatDoc = this.sandbox.spy(LodLive.prototype, 'formatDoc');
+    var renderDocInfo = this.sandbox.spy(LodLive.prototype, 'renderDocInfo');
 
     var firstUri = 'http://dbpedia.org/resource/Will_Smith';
 
@@ -105,9 +105,9 @@ describe('lodlive', function () {
       JSON.stringify(this.fixtures.willSmith)
     );
 
-    expect(formatDoc).to.have.been.calledOnce;
+    expect(renderDocInfo).to.have.been.calledOnce;
 
     expect($('.lodlive-docinfo').length).to.equal(1);
-    expect($('.lodlive-docinfo .section').length).to.equal(15);
+    expect($('.lodlive-docinfo .section').length).to.equal(17);
   });
 });

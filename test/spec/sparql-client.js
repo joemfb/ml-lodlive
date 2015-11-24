@@ -69,7 +69,7 @@ describe('sparqlClient', function () {
     expect(successStub).to.have.been.calledOnce
     var args = successStub.args[0][0];
 
-    expect(args.uris.length).to.equal(1)
+    expect(args.related.length).to.equal(1)
     expect(args.values.length).to.equal(1)
     expect(args.bnodes.length).to.equal(1)
   })
